@@ -1,53 +1,88 @@
-//Create Web Server
+// Create Web Server
 var express = require('express');
-var app = express();
-var path = require('path');
 var bodyParser = require('body-parser');
-var fs = require('fs');
-var urlencodedParser = bodyParser.urlencoded({ extended: false });
+var app = express();
+
+// Create Database Connection
+var mongoose = require('mongoose');
+mongoose.connect('mongodb://localhost:27017/comment');
+
+// Create Schema
+var commentSchema = mongoose.Schema({
+  _id: Number,
+  name: String,
+  comment: String,
+  date: { type: Date, default: Date.now },
+  parent: Number
+});
+
+// Create Model
+var Comment = mongoose.model('Comment', commentSchema);
+
+// Create Server
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json());
 
 // Set Port
-app.set('port', (process.env.PORT || 5000));
+var port = process.env.PORT || 8080;
 
-// Set Static Path
-app.use(express.static(path.join(__dirname, 'public')));
+// Set Router
+var router = express.Router();
 
-// Set Views Folder
-app.set('views', path.join(__dirname, 'views'));
-
-// Set View Engine
-app.set('view engine', 'ejs');
-
-// Index Page
-app.get('/', function(req, res){
-	res.render('index', {
-		title: 'Comments'
-	});
+// Middleware for all request
+router.use(function(req, res, next) {
+  console.log('Something is happening.');
+  next();
 });
 
-// Comments Page
-app.get('/comments', function(req, res){
-	res.render('comments', {
-		title: 'Comments'
-	});
+// Create Comment
+router.route('/comments').post(function(req, res) {
+  var comment = new Comment();
+  comment._id = req.body._id;
+  comment.name = req.body.name;
+  comment.comment = req.body.comment;
+  comment.parent = req.body.parent;
+
+  comment.save(function(err) {
+    if (err) res.send(err);
+    res.json({ message: 'Comment created!' });
+  });
 });
 
-// Comments Page
-app.post('/comments', urlencodedParser, function(req, res){
-	console.log(req.body);
-	res.render('comments', {
-		title: 'Comments'
-	});
+// Get All Comments
+router.route('/comments').get(function(req, res) {
+  Comment.find(function(err, comments) {
+    if (err) res.send(err);
+    res.json(comments);
+  });
 });
 
-// Get Comments
-app.get('/getComments', function(req, res){
-	fs.readFile(__dirname + '/data/comments.json', 'utf8', function(err, data){
-		res.send(data);
-	});
+// Get Comment By ID
+router.route('/comments/:comment_id').get(function(req, res) {
+  Comment.findById(req.params.comment_id, function(err, comment) {
+    if (err) res.send(err);
+    res.json(comment);
+  });
 });
 
-// Start Server
-app.listen(app.get('port'), function(){
-	console.log('Server started on port '+app.get('port'));
+// Update Comment By ID
+router.route('/comments/:comment_id').put(function(req, res) {
+  Comment.findById(req.params.comment_id, function(err, comment) {
+    if (err) res.send(err);
+    comment._id = req.body._id;
+    comment.name = req.body.name;
+    comment.comment = req.body.comment;
+    comment.parent = req.body.parent;
+
+    comment.save(function(err) {
+      if (err) res.send(err);
+      res.json({ message: 'Comment updated!' });
+    });
+  });
 });
+
+// Delete Comment By ID
+router.route('/comments/:comment_id').delete(function(req, res) {
+  Comment.remove(
+    {
+      _id:
